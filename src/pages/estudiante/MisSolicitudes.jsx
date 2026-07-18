@@ -1,26 +1,36 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import client from '../../api/client';
 import Navbar from '../../components/Navbar';
 import EstadoBadge from '../../components/EstadoBadge';
-import Spinner from '../../components/Spinner';
+import { useFeedback } from '../../context/FeedbackContext';
+import PageHeader from '../../components/ui/PageHeader';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+import EmptyState from '../../components/ui/EmptyState';
+import ClickableRow from '../../components/ui/ClickableRow';
+import { SkeletonTable } from '../../components/ui/Skeleton';
+import { ESTADO_HERO } from '../../lib/estadoHero';
 
 const DESTINO_AUTONOMA = 'Corporación Universitaria Autónoma del Cauca';
 
 export default function MisSolicitudes() {
   const navigate = useNavigate();
+  const { showError } = useFeedback();
   const [solicitudes, setSolicitudes] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     client.get('/solicitudes/')
       .then(({ data }) => setSolicitudes(data.items ?? data))
-      .catch(() => setError('No se pudieron cargar las solicitudes.'))
+      .catch(() => showError('No se pudieron cargar las solicitudes.'))
       .finally(() => setCargando(false));
   }, []);
 
-  const tieneActivaActiva = solicitudes.some((s) => s.estado !== 'rechazada');
+  const activa = solicitudes.find((s) => s.estado !== 'rechazada');
+  const tieneActivaActiva = Boolean(activa);
+  const hero = activa && ESTADO_HERO[activa.estado];
 
   const normalizeSolicitud = (s) => {
     const solicitudId = s.id ?? s._id ?? s.uuid ?? '';
@@ -37,68 +47,80 @@ export default function MisSolicitudes() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-semibold text-gray-800">Mis solicitudes</h1>
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={() => navigate('/solicitudes/nueva')}
-              disabled={tieneActivaActiva}
-              title={tieneActivaActiva ? 'Ya tienes una solicitud activa. Solo puedes crear una nueva si la anterior fue rechazada.' : undefined}
-              className="px-4 py-2 bg-[#1F3864] text-white text-sm rounded-md hover:bg-blue-900 transition disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              + Nueva solicitud
-            </button>
-            {tieneActivaActiva && (
-              <p className="text-xs text-gray-500">Ya tienes una solicitud activa.</p>
-            )}
-          </div>
-        </div>
+      <main id="main-content" tabIndex={-1} className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        <PageHeader
+          title="Mis solicitudes"
+          action={
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                onClick={() => navigate('/solicitudes/nueva')}
+                disabled={tieneActivaActiva}
+                title={tieneActivaActiva ? 'Ya tienes una solicitud activa. Solo puedes crear una nueva si la anterior fue rechazada.' : undefined}
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                Nueva solicitud
+              </Button>
+              {tieneActivaActiva && (
+                <p className="text-xs text-ink-500">Ya tienes una solicitud activa.</p>
+              )}
+            </div>
+          }
+        />
 
-        {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">
-            {error}
-          </div>
+        {!cargando && hero && (
+          <Card
+            onClick={() => navigate(`/solicitudes/${activa.id}`)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/solicitudes/${activa.id}`); } }}
+            className="mb-4 flex items-center gap-4 cursor-pointer hover:shadow-float transition-shadow"
+          >
+            <img src={hero.mascot} alt="" className={`w-14 h-14 shrink-0 ${hero.pulse ? 'animate-pulse' : ''}`} />
+            <div>
+              <p className="font-medium text-ink-900">{hero.titulo}</p>
+              <p className="text-sm text-ink-500 mt-0.5">{hero.detalle}</p>
+            </div>
+          </Card>
         )}
 
         {cargando ? (
-          <Spinner />
+          <SkeletonTable rows={4} cols={5} />
         ) : solicitudes.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <p className="text-lg">No tienes solicitudes aún.</p>
-            <p className="text-sm mt-1">Crea una nueva para comenzar.</p>
-          </div>
+          <EmptyState
+            mascot="/img/Iaesperando.svg"
+            title="No tienes solicitudes aún."
+            description="Crea una nueva para comenzar tu proceso de homologación."
+          />
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-card">
+            <table className="min-w-full divide-y divide-ink-100 text-sm">
+              <thead className="bg-ink-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Institución origen</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa origen</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa destino</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Institución origen</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Programa origen</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Programa destino</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Fecha</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="divide-y divide-ink-100">
                 {solicitudes.map((s) => {
                   const solicitud = normalizeSolicitud(s);
                   return (
-                    <tr
+                    <ClickableRow
                       key={solicitud.solicitudId}
                       onClick={() => solicitud.solicitudId && navigate(`/solicitudes/${solicitud.solicitudId}`)}
-                      className="hover:bg-gray-50 cursor-pointer"
                     >
-                      <td className="px-4 py-3 text-gray-700">{solicitud.institucion_origen ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{solicitud.programa_origen ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{solicitud.programa_destino ?? '—'}</td>
-                      <td className="px-4 py-3"><EstadoBadge estado={solicitud.estado} /></td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3.5 text-ink-700">{solicitud.institucion_origen ?? '—'}</td>
+                      <td className="px-4 py-3.5 text-ink-700">{solicitud.programa_origen ?? '—'}</td>
+                      <td className="px-4 py-3.5 text-ink-700">{solicitud.programa_destino ?? '—'}</td>
+                      <td className="px-4 py-3.5"><EstadoBadge estado={solicitud.estado} /></td>
+                      <td className="px-4 py-3.5 text-ink-500">
                         {solicitud.creado_en ? new Date(solicitud.creado_en).toLocaleDateString('es-CO') : '—'}
                       </td>
-                    </tr>
+                    </ClickableRow>
                   );
                 })}
               </tbody>

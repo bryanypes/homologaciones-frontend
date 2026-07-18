@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const client = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
+  baseURL: 'https://homologaciones-api.onrender.com/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -17,10 +17,13 @@ client.interceptors.request.use((config) => {
 });
 
 // Si el token expira, limpia y redirige al login
+// (excepto en el propio intento de login, donde un 401 es "credenciales inválidas",
+// no una sesión expirada, y debe dejarse en manos del formulario para mostrarlo)
 client.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const esIntentoDeLogin = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !esIntentoDeLogin) {
       localStorage.removeItem('token');
       localStorage.removeItem('rol');
       localStorage.removeItem('nombre');

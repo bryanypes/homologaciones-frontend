@@ -1,10 +1,12 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { cn } from '../lib/cn';
 
 const ROL_ETIQUETA = {
   estudiante: 'Estudiante',
   coordinador: 'Coordinador',
-  rector: 'Rector',
+  vicerrector: 'Vicerrector',
+  admin: 'Administrador',
 };
 
 const NAV_LINKS = {
@@ -14,10 +16,12 @@ const NAV_LINKS = {
   coordinador: [
     { label: 'Solicitudes', path: '/coordinador/solicitudes' },
   ],
-  rector: [
-    { label: 'Solicitudes', path: '/rector/solicitudes' },
-    { label: 'Usuarios', path: '/rector/usuarios' },
-    { label: 'Panel admin', path: '/rector/admin' },
+  vicerrector: [
+    { label: 'Solicitudes', path: '/vicerrector/solicitudes' },
+  ],
+  admin: [
+    { label: 'Panel', path: '/admin/panel' },
+    { label: 'Usuarios', path: '/admin/usuarios' },
   ],
 };
 
@@ -34,23 +38,35 @@ export default function Navbar() {
   const links = NAV_LINKS[rol] ?? [];
 
   return (
-    <header className="bg-[#1F3864] text-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <span className="font-semibold text-sm md:text-base whitespace-nowrap">
-          Homologaciones — Corporación Universitaria Autónoma del Cauca
-        </span>
+    <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-white focus:text-primary-700 focus:px-4 focus:py-2.5 focus:rounded-lg focus:shadow-float-lg focus:font-medium"
+      >
+        Saltar al contenido principal
+      </a>
+      <header className="sticky top-0 z-40 bg-background/85 backdrop-blur-md border-b border-ink-100">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2.5 shrink-0 rounded-lg focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+        >
+          <img src="/img/LOGO.svg" alt="HomologaIA" className="h-9 w-auto rounded-md" />
+          <span className="hidden sm:block font-semibold text-ink-900 text-sm tracking-tight">HomologaIA</span>
+        </button>
 
         {links.length > 0 && (
-          <nav className="hidden sm:flex items-center gap-1 flex-1">
+          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
             {links.map(({ label, path }) => {
               const activo = location.pathname === path || location.pathname.startsWith(path + '/');
               return (
                 <button
                   key={path}
                   onClick={() => navigate(path)}
-                  className={`px-3 py-1.5 rounded text-sm transition ${
-                    activo ? 'bg-white/20 font-medium' : 'hover:bg-white/10 text-blue-100'
-                  }`}
+                  className={cn(
+                    'px-4 py-2 rounded-xl text-sm font-medium transition-colors',
+                    activo ? 'bg-primary-600 text-white' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900',
+                  )}
                 >
                   {label}
                 </button>
@@ -62,19 +78,40 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/perfil')}
-            className="text-right hidden sm:block hover:opacity-80 transition"
+            className="text-right hidden sm:block hover:opacity-70 transition-opacity rounded-lg"
           >
-            <p className="text-sm font-medium leading-tight">{nombre}</p>
-            <p className="text-xs text-blue-200">{ROL_ETIQUETA[rol] || rol}</p>
+            <p className="text-sm font-medium leading-tight text-ink-900">{nombre}</p>
+            <p className="text-xs text-ink-500">{ROL_ETIQUETA[rol] || rol}</p>
           </button>
           <button
             onClick={handleLogout}
-            className="px-3 py-1.5 text-sm bg-white text-[#1F3864] rounded font-medium hover:bg-blue-50 transition whitespace-nowrap"
+            className="px-3.5 py-2 text-sm bg-white border border-ink-200 text-ink-700 rounded-xl font-medium hover:bg-ink-50 hover:border-ink-300 transition-colors whitespace-nowrap"
           >
-            Cerrar sesión
+            Salir
           </button>
         </div>
       </div>
+
+      {links.length > 0 && (
+        <nav className="md:hidden flex items-center gap-1 px-4 pb-3 overflow-x-auto">
+          {links.map(({ label, path }) => {
+            const activo = location.pathname === path || location.pathname.startsWith(path + '/');
+            return (
+              <button
+                key={path}
+                onClick={() => navigate(path)}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors',
+                  activo ? 'bg-primary-600 text-white' : 'text-ink-600 bg-ink-100',
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </header>
+    </>
   );
 }
