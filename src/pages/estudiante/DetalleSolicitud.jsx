@@ -1,24 +1,58 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Download, Layers, GraduationCap, Clock3, CheckCircle2 } from 'lucide-react';
 import client from '../../api/client';
 import Navbar from '../../components/Navbar';
 import EstadoBadge from '../../components/EstadoBadge';
 import UploadPDF from '../../components/UploadPDF';
 import Spinner from '../../components/Spinner';
+import AIProcessingScreen from '../../components/AIProcessingScreen';
+import AIMessage from '../../components/AIMessage';
+import ObservationsPanel from '../../components/ObservationsPanel';
+import Timeline from '../../components/Timeline';
 import { useAuth } from '../../context/AuthContext';
+import { useFeedback } from '../../context/FeedbackContext';
+import PageHeader from '../../components/ui/PageHeader';
+import Card, { CardHeader } from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import StatTile from '../../components/ui/StatTile';
+import { cn } from '../../lib/cn';
+import { formatFecha } from '../../lib/format';
+import { ESTADO_HERO } from '../../lib/estadoHero';
+import { obtenerCreditosPrograma } from '../../lib/programaCreditos';
+
+const ESTADOS_CON_HOMOLOGACION = ['revision_coordinador', 'pendiente_rector', 'aprobada', 'rechazada'];
+
+const ETIQUETA_ESTADO_ASIG = {
+  homologada: 'Homologadas',
+  homologada_parcial: 'Homologadas parcial',
+  pendiente: 'Pendientes',
+  no_homologada: 'No homologadas',
+};
+
+const COLOR_ESTADO_ASIG = {
+  homologada: 'bg-success-600',
+  homologada_parcial: 'bg-accent-500',
+  pendiente: 'bg-accent-300',
+  no_homologada: 'bg-danger-500',
+};
 
 export default function DetalleSolicitud() {
   const { id } = useParams();
   const { nombre: nombreAuth } = useAuth();
+  const { showError, showSuccess } = useFeedback();
   const navigate = useNavigate();
   const [solicitud, setSolicitud] = useState(null);
+  const [resumen, setResumen] = useState(null);
+  const [creditosPrograma, setCreditosPrograma] = useState(null);
   const [historial, setHistorial] = useState([]);
   const [documentosState, setDocumentosState] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(null);
-  const [exito, setExito] = useState(null);
+  const [errorCarga, setErrorCarga] = useState(null);
   const [archivoPDF, setArchivoPDF] = useState(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [progresoSubida, setProgresoSubida] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [descargandoResolucion, setDescargandoResolucion] = useState(false);
   const [eliminando, setEliminando] = useState(new Set());
@@ -41,13 +75,25 @@ export default function DetalleSolicitud() {
     }
   };
 
+  const cargarResumen = async (estado) => {
+    if (!ESTADOS_CON_HOMOLOGACION.includes(estado)) return;
+    try {
+      const { data } = await client.get(`/homologaciones/${id}/resumen`);
+      setResumen(data);
+    } catch (err) {
+      if (err.response?.status !== 404) console.warn('Error al cargar el resumen de homologación:', err);
+    }
+  };
+
   const cargar = async () => {
     try {
       const { data: sol } = await client.get(`/solicitudes/${id}`);
       setSolicitud(sol);
+      await cargarResumen(sol.estado);
+      obtenerCreditosPrograma(sol.programa_destino_id).then(setCreditosPrograma);
     } catch (err) {
       console.warn('Error al cargar solicitud:', err);
-      setError('No se pudo cargar la solicitud.');
+      setErrorCarga('No se pudo cargar la solicitud.');
       setCargando(false);
       return;
     }
@@ -69,36 +115,30 @@ export default function DetalleSolicitud() {
   const handleSubirNotas = async () => {
     if (!archivoPDF) return;
     setSubiendo(true);
-    setError(null);
-    console.log('📤 Iniciando carga de notas...');
-    console.log('Archivo:', archivoPDF.name, archivoPDF.type, archivoPDF.size);
+    setProgresoSubida(0);
     try {
       const formData = new FormData();
       formData.append('file', archivoPDF);
-      
-      console.log('📤 POST a /documentos/%s/notas', id);
-      const response = await client.post(`/documentos/${id}/notas`, formData, {
+      await client.post(`/documentos/${id}/notas`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (evt) => {
+          if (evt.total) setProgresoSubida(Math.round((evt.loaded / evt.total) * 100));
+        },
       });
-      
-      console.log('✅ Respuesta:', response.data);
-      setExito('Notas subidas correctamente.');
+      showSuccess('Notas subidas correctamente.');
       setArchivoPDF(null);
       cargar();
     } catch (err) {
-      console.error('❌ Error al subir:', err);
-      console.error('Response:', err.response?.data);
-      console.error('Status:', err.response?.status);
       const detail = err.response?.data?.detail || err.message || 'Error al subir el archivo.';
-      setError(detail);
+      showError(detail);
     } finally {
       setSubiendo(false);
+      setProgresoSubida(0);
     }
   };
 
   const handleDescargarResolucion = async () => {
     setDescargandoResolucion(true);
-    setError(null);
     try {
       const { data } = await client.post(`/homologaciones/${id}/generar-resolucion`, {}, { responseType: 'blob' });
       const url = URL.createObjectURL(data);
@@ -108,7 +148,7 @@ export default function DetalleSolicitud() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError('Error al descargar la resolución.');
+      showError('Error al descargar la resolución.');
     } finally {
       setDescargandoResolucion(false);
     }
@@ -124,18 +164,17 @@ export default function DetalleSolicitud() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError('Error al descargar el documento.');
+      showError('Error al descargar el documento.');
     }
   };
 
   const handleEliminar = async (doc) => {
     setEliminando((prev) => new Set([...prev, doc.id]));
-    setError(null);
     try {
       await client.delete(`/documentos/${id}/${doc.id}`);
       cargar();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al eliminar el documento.');
+      showError(err.response?.data?.detail || 'Error al eliminar el documento.');
     } finally {
       setEliminando((prev) => { const n = new Set(prev); n.delete(doc.id); return n; });
     }
@@ -143,7 +182,6 @@ export default function DetalleSolicitud() {
 
   const handleEnviar = async () => {
     setEnviando(true);
-    setError(null);
     try {
       try {
         await client.patch(`/solicitudes/${id}/enviar`);
@@ -154,31 +192,24 @@ export default function DetalleSolicitud() {
           throw err;
         }
       }
-      setExito('Solicitud enviada correctamente.');
+      showSuccess('Solicitud enviada correctamente.');
       cargar();
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Error al enviar la solicitud.');
+      showError(err.response?.data?.detail || err.message || 'Error al enviar la solicitud.');
     } finally {
       setEnviando(false);
     }
   };
 
-  if (cargando) return <div className="min-h-screen bg-gray-50"><Navbar /><Spinner /></div>;
+  if (cargando) return <div className="min-h-screen bg-background flex flex-col"><Navbar /><Spinner fullScreen /></div>;
 
   if (!solicitud) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="max-w-3xl mx-auto px-4 py-8">
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">
-            {error || 'No se encontró la solicitud.'}
-          </div>
-          <button
-            onClick={() => navigate('/solicitudes')}
-            className="px-4 py-2 bg-[#1F3864] text-white text-sm rounded-md hover:bg-blue-900"
-          >
-            Volver a solicitudes
-          </button>
+        <main id="main-content" tabIndex={-1} className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+          <Alert tone="danger" className="mb-4">{errorCarga || 'No se encontró la solicitud.'}</Alert>
+          <Button onClick={() => navigate('/solicitudes')}>Volver a solicitudes</Button>
         </main>
       </div>
     );
@@ -187,10 +218,9 @@ export default function DetalleSolicitud() {
   const val = (v) => v ?? 'No especificado';
   const documentos = solicitud?.documentos ?? documentosState;
   const puedeSubirDocs = ['borrador', 'enviada', 'en_revision'].includes(solicitud?.estado);
-  const tieneNotas = documentos.some?.((d) => {
-    const tipo = String(d.tipo ?? '').toLowerCase();
-    return tipo === 'pensum_origen';
-  }) ?? false;
+  const notasSubidas = documentos.filter((d) => d.tipo?.toLowerCase() === 'pensum_origen');
+  const tieneNotas = notasSubidas.length > 0;
+  const hayCupoDocs = notasSubidas.length < 4;
   const nombreEstudiante = solicitud.estudiante?.nombre
     || solicitud.nombre
     || solicitud.estudiante_nombre
@@ -199,182 +229,222 @@ export default function DetalleSolicitud() {
     || solicitud.name
     || nombreAuth;
 
-  // Debug: log para ver qué está llegando
-  console.log('Estado:', solicitud.estado);
-  console.log('Documentos:', documentos);
-  console.log('Nombre estudiante:', nombreEstudiante);
-  console.log('Tiene notas:', tieneNotas);
+  const procesando = solicitud.estado === 'procesando_ia';
+  const hero = !procesando ? ESTADO_HERO[solicitud.estado] : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate('/solicitudes')} className="text-gray-400 hover:text-gray-600 text-sm">
-            {'<-'} Volver
-          </button>
-          <h1 className="text-xl font-semibold text-gray-800">Detalle de solicitud</h1>
+      <main id="main-content" tabIndex={-1} className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <PageHeader
+          title="Detalle de solicitud"
+          onBack={() => navigate('/solicitudes')}
+          action={<EstadoBadge estado={solicitud.estado} />}
+        />
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500 -mt-3 mb-5">
+          {solicitud.id && <span className="font-mono">ID #{String(solicitud.id).slice(0, 8)}</span>}
+          {solicitud.creado_en && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>Creada el {formatFecha(solicitud.creado_en)}</span>
+            </>
+          )}
         </div>
 
-        {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">{error}</div>
-        )}
-        {exito && (
-          <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded">{exito}</div>
+        {procesando && (
+          <Card className="mb-5">
+            <AIProcessingScreen
+              title="Analizando la información académica..."
+              subtitle="La Inteligencia Artificial está comparando tus materias con el pensum del programa destino. Puede tardar hasta un minuto."
+            />
+          </Card>
         )}
 
-        <div className="bg-white rounded-lg border border-gray-200 px-6 py-6 mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-medium text-gray-800">Información de la solicitud</h2>
-            <EstadoBadge estado={solicitud.estado} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            {[
-              ['Nombre', val(nombreEstudiante)],
-              ['Cédula', val(solicitud.cedula)],
-              ['Teléfono', val(solicitud.telefono)],
-              ['Correo de contacto', val(solicitud.correo_contacto)],
-              ['Institución origen', val(solicitud.institucion_origen)],
-              ['Programa origen', val(solicitud.programa_origen)],
-              ['Institución destino', val(solicitud.institucion_destino)],
-              ['Programa destino', val(solicitud.programa_destino)],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <p className="text-gray-400 text-xs">{label}</p>
-                <p className="text-gray-700 font-medium">{value}</p>
+        {hero && (
+          <Card className={cn(
+            'mb-5',
+            hero.tono === 'success' && 'border-success-200',
+            hero.tono === 'danger' && 'border-danger-200',
+          )}>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <AIMessage
+                mascot={hero.mascot}
+                size="lg"
+                decorate
+                animate={hero.pulse ? 'animate-pulse' : 'animate-float'}
+                className="flex-1 min-w-[240px]"
+              >
+                <p className={cn(
+                  'font-medium',
+                  hero.tono === 'success' ? 'text-success-700' : hero.tono === 'danger' ? 'text-danger-700' : 'text-ink-900',
+                )}>{hero.titulo}</p>
+                <p className="text-sm text-ink-500 mt-0.5">{hero.detalle || (hero.tono === 'danger' && solicitud.observaciones)}</p>
+              </AIMessage>
+              {solicitud.estado === 'aprobada' && (
+                <Button onClick={handleDescargarResolucion} loading={descargandoResolucion} className="whitespace-nowrap">
+                  {!descargandoResolucion && <Download className="w-4 h-4" aria-hidden="true" />}
+                  {descargandoResolucion ? 'Generando...' : 'Descargar resolución'}
+                </Button>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {resumen && (
+          <Card className="mb-5">
+            <CardHeader title="Resultado del análisis" subtitle="Estadísticas generales de la comparación entre tus materias y el programa destino." />
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <StatTile icon={Layers} value={resumen.estadisticas.total_asignaturas} label="Materias analizadas" tone="primary" />
+              <StatTile
+                icon={CheckCircle2}
+                value={(resumen.por_estado.homologada?.cantidad ?? 0) + (resumen.por_estado.homologada_parcial?.cantidad ?? 0)}
+                label="Materias homologadas"
+                tone="success"
+              />
+              <StatTile icon={Clock3} value={resumen.por_estado.pendiente?.cantidad ?? 0} label="Materias por revisar" tone="accent" />
+              <StatTile
+                icon={GraduationCap}
+                value={creditosPrograma ? `${resumen.estadisticas.total_creditos_homologados} / ${creditosPrograma}` : resumen.estadisticas.total_creditos_homologados}
+                label="Créditos homologados"
+                tone="success"
+              />
+            </div>
+
+            <ObservationsPanel titulo="Esto es lo que encontró la IA" texto={resumen.resumen_ia} className="mb-4" />
+
+            {resumen.estadisticas.total_asignaturas > 0 && (
+              <div>
+                <p className="text-xs font-medium text-ink-500 uppercase tracking-wide mb-3">Distribución por estado</p>
+                <div className="flex flex-col gap-2.5">
+                  {Object.entries(resumen.por_estado)
+                    .filter(([, info]) => info.cantidad > 0)
+                    .map(([estado, info]) => {
+                      const pct = Math.round((info.cantidad / resumen.estadisticas.total_asignaturas) * 100);
+                      return (
+                        <div key={estado} className="flex items-center gap-3 text-sm">
+                          <span className="w-36 shrink-0 text-ink-600 truncate">{ETIQUETA_ESTADO_ASIG[estado] ?? estado}</span>
+                          <div
+                            className="flex-1 h-2.5 rounded-full bg-ink-100 overflow-hidden"
+                            role="progressbar"
+                            aria-valuenow={pct}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`${ETIQUETA_ESTADO_ASIG[estado] ?? estado}: ${info.cantidad} de ${resumen.estadisticas.total_asignaturas}`}
+                          >
+                            <div className={cn('h-full rounded-full', COLOR_ESTADO_ASIG[estado] ?? 'bg-ink-300')} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="w-16 shrink-0 text-right text-ink-500 tabular-nums" aria-hidden="true">{info.cantidad} · {pct}%</span>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 px-6 py-6 mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-medium text-gray-800">Documentos</h2>
-            {puedeSubirDocs && (
-              <span className="text-xs text-gray-400">{documentos.filter(d => d.tipo?.toLowerCase() === 'pensum_origen').length}/4 archivos</span>
             )}
-          </div>
+          </Card>
+        )}
 
-          {documentos.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {documentos.map((doc, i) => (
-                <div key={i} className="flex items-center justify-between text-sm bg-gray-50 px-3 py-2 rounded">
-                  <span className="text-gray-700 truncate mr-3">{doc.nombre_original ?? doc.nombre ?? 'Documento'}</span>
-                  <div className="flex gap-3 flex-shrink-0">
-                    <button onClick={() => handleDescargar(doc)} className="text-blue-700 hover:underline">
-                      Descargar
-                    </button>
-                    {puedeSubirDocs && (
-                      <button
-                        onClick={() => handleEliminar(doc)}
-                        disabled={eliminando.has(doc.id)}
-                        className="text-red-500 hover:underline disabled:opacity-40"
-                      >
-                        {eliminando.has(doc.id) ? '...' : 'Quitar'}
-                      </button>
-                    )}
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          <Card>
+            <CardHeader title="Información de la solicitud" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              {[
+                ['Nombre', val(nombreEstudiante)],
+                ['Cédula', val(solicitud.cedula)],
+                ['Teléfono', val(solicitud.telefono)],
+                ['Correo de contacto', val(solicitud.correo_contacto)],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-ink-400 text-xs">{label}</p>
+                  <p className="text-ink-800 font-medium">{value}</p>
                 </div>
               ))}
             </div>
-          )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-4 pt-4 border-t border-ink-100">
+              {[
+                ['Institución origen', val(solicitud.institucion_origen)],
+                ['Programa origen', val(solicitud.programa_origen)],
+                ['Institución destino', val(solicitud.institucion_destino)],
+                ['Programa destino', val(solicitud.programa_destino)],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-ink-400 text-xs">{label}</p>
+                  <p className="text-ink-800 font-medium">{value}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
 
-          {puedeSubirDocs ? (
-            documentos.filter(d => d.tipo?.toLowerCase() === 'pensum_origen').length < 4 ? (
-              <div className="flex flex-col gap-3">
-                {!documentos.length && (
-                  <p className="text-sm text-gray-500">Aún no has subido tus notas académicas.</p>
-                )}
-                <UploadPDF label="Agregar notas académicas (PDF)" onFile={setArchivoPDF} />
-                {archivoPDF && (
-                  <button
-                    onClick={handleSubirNotas}
-                    disabled={subiendo}
-                    className="self-start px-4 py-2 bg-[#1F3864] text-white text-sm rounded-md hover:bg-blue-900 disabled:opacity-50"
-                  >
-                    {subiendo ? 'Subiendo...' : 'Subir'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400">Límite de 4 archivos alcanzado. Quita uno para subir otro.</p>
-            )
-          ) : (
-            !documentos.length && <p className="text-sm text-gray-400">Sin documentos.</p>
-          )}
+          <Card>
+            <CardHeader
+              title="Documentos"
+              action={puedeSubirDocs && (
+                <span className="text-xs text-ink-400">{notasSubidas.length}/4 archivos</span>
+              )}
+            />
+
+            <div className="flex flex-col gap-3">
+              {documentos.map((doc) => (
+                <UploadPDF
+                  key={doc.id}
+                  label={doc.nombre_original ?? doc.nombre ?? 'Documento'}
+                  existing={doc}
+                  onDownload={() => handleDescargar(doc)}
+                  onRemove={puedeSubirDocs ? () => handleEliminar(doc) : undefined}
+                  disabled={eliminando.has(doc.id)}
+                />
+              ))}
+
+              {!documentos.length && (
+                <AIMessage mascot="/img/IAseñalandoderecha.svg" size="sm" className="mb-1">
+                  Aún no has subido tus notas académicas. Súbelas aquí para que pueda comenzar a comparar tus materias.
+                </AIMessage>
+              )}
+
+              {puedeSubirDocs && (
+                hayCupoDocs ? (
+                  <>
+                    <UploadPDF
+                      label="Agregar notas académicas"
+                      hint="Solo PDF."
+                      onFile={setArchivoPDF}
+                      file={archivoPDF}
+                      onRemove={() => setArchivoPDF(null)}
+                      status={subiendo ? 'uploading' : undefined}
+                      progress={progresoSubida}
+                    />
+                    {archivoPDF && !subiendo && (
+                      <Button onClick={handleSubirNotas} className="self-start">
+                        Subir documento
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-ink-400">Límite de 4 archivos alcanzado. Quita uno para subir otro.</p>
+                )
+              )}
+            </div>
+          </Card>
         </div>
 
         {solicitud.estado === 'borrador' && (
-          <div className="bg-white rounded-lg border border-gray-200 px-6 py-6 mb-4">
-            <h2 className="font-medium text-gray-800 mb-2">Enviar solicitud</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Una vez enviada, no podrás modificar la solicitud.
-            </p>
+          <Card className="mt-5">
+            <CardHeader title="Enviar solicitud" subtitle="Una vez enviada, no podrás modificar la solicitud." />
             {!tieneNotas && (
-              <p className="text-sm text-amber-600 mb-3">
-                Debes subir tu certificado de notas antes de enviar la solicitud.
-              </p>
+              <Alert tone="warning" className="mb-3">Debes subir tu certificado de notas antes de enviar la solicitud.</Alert>
             )}
-            <button
-              onClick={handleEnviar}
-              disabled={enviando || !tieneNotas}
-              className="px-5 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <Button variant="success" onClick={handleEnviar} loading={enviando} disabled={!tieneNotas}>
               {enviando ? 'Enviando...' : 'Enviar solicitud'}
-            </button>
-          </div>
-        )}
-
-        {solicitud.estado === 'aprobada' && (
-          <div className="bg-white rounded-lg border border-green-200 px-6 py-5 mb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-green-800">Tu homologación fue aprobada</p>
-                <p className="text-xs text-gray-500 mt-0.5">Descarga la resolución oficial de homologación.</p>
-              </div>
-              <button
-                onClick={handleDescargarResolucion}
-                disabled={descargandoResolucion}
-                className="px-4 py-2 bg-[#1F3864] text-white text-sm rounded-md hover:bg-blue-900 disabled:opacity-50 whitespace-nowrap"
-              >
-                {descargandoResolucion ? 'Generando...' : '⬇ Descargar resolución'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {solicitud.estado === 'rechazada' && (
-          <div className="bg-white rounded-lg border border-red-200 px-6 py-5 mb-4">
-            <p className="font-medium text-red-800">Tu solicitud fue rechazada</p>
-            {solicitud.observaciones && (
-              <p className="text-sm text-gray-600 mt-1">{solicitud.observaciones}</p>
-            )}
-          </div>
+            </Button>
+          </Card>
         )}
 
         {historial.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 px-6 py-6">
-            <h2 className="font-medium text-gray-800 mb-4">Historial de estados</h2>
-            <ol className="relative border-l border-gray-200 ml-2">
-              {historial.map((h, i) => (
-                <li key={i} className="mb-4 ml-4">
-                  <div className="absolute w-2.5 h-2.5 bg-blue-500 rounded-full -left-1.5 mt-1" />
-                  <p className="text-xs text-gray-400">
-                    {new Date(h.creado_en).toLocaleString('es-CO')}
-                    {h.usuario_nombre && <span className="ml-2 text-gray-500">· {h.usuario_nombre}</span>}
-                  </p>
-                  <p className="text-sm text-gray-700 flex items-center gap-2 flex-wrap mt-0.5">
-                    <EstadoBadge estado={h.estado_anterior} />
-                    <span>{'→'}</span>
-                    <EstadoBadge estado={h.estado_nuevo} />
-                  </p>
-                  {h.observacion && (
-                    <p className="text-xs text-gray-500 mt-1 pl-1 border-l-2 border-gray-200">{h.observacion}</p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
+          <Card className="mt-5">
+            <CardHeader title="Historial de estados" />
+            <Timeline eventos={historial} />
+          </Card>
         )}
       </main>
     </div>

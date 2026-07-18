@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { User, Mail, Lock, ArrowRight, CheckCircle2, UserPlus } from 'lucide-react';
 import client from '../api/client';
+import { useFeedback } from '../context/FeedbackContext';
+import AuthShell from '../components/ui/AuthShell';
+import Button from '../components/ui/Button';
+import { Input } from '../components/ui/Field';
 
 export default function Register() {
   const navigate = useNavigate();
+  const { showError } = useFeedback();
   const [form, setForm] = useState({ nombre: '', apellido: '', email: '', password: '' });
-  const [error, setError] = useState(null);
   const [exito, setExito] = useState(false);
   const [cargando, setCargando] = useState(false);
 
@@ -13,109 +18,98 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
     setCargando(true);
     try {
       await client.post('/auth/register', { ...form, rol: 'estudiante' });
       setExito(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al registrarse.');
+      showError(err.response?.data?.detail || 'Error al registrarse.');
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-[#1F3864] text-white text-center py-6 rounded-t-lg">
-          <h1 className="text-lg font-semibold">Sistema de Homologaciones</h1>
-          <p className="text-blue-200 text-sm mt-1">Corporación Universitaria Autónoma del Cauca</p>
+    <AuthShell title="Crear cuenta" subtitle="Regístrate para iniciar tu homologación" icon={UserPlus}>
+      {exito ? (
+        <div className="flex flex-col items-center text-center py-6">
+          <div className="relative w-24 h-24 mb-4 animate-scale-in">
+            <div className="absolute inset-0 rounded-full bg-success-100 blur-xl" aria-hidden="true" />
+            <img src="/img/Iaaprobada.svg" alt="" className="relative z-10 w-full h-full object-contain drop-shadow-[0_10px_18px_rgba(2,42,138,0.2)]" />
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-success-700 font-semibold text-lg mb-1.5">
+            <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
+            ¡Cuenta creada con éxito!
+          </span>
+          <p className="text-sm text-ink-500">Redirigiendo a inicio de sesión...</p>
         </div>
-
-        <div className="bg-white rounded-b-lg shadow-md px-8 py-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Crear cuenta</h2>
-
-          {error && (
-            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">
-              {error}
-            </div>
-          )}
-
-          {exito && (
-            <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded">
-              Cuenta creada exitosamente. Redirigiendo...
-            </div>
-          )}
-
+      ) : (
+        <>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                <input
-                  type="text"
-                  name="nombre"
-                  value={form.nombre}
-                  onChange={handleChange}
-                  required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
-                <input
-                  type="text"
-                  name="apellido"
-                  value={form.apellido}
-                  onChange={handleChange}
-                  required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Nombre"
+                icon={User}
+                type="text"
+                name="nombre"
+                placeholder="Tu nombre"
+                value={form.nombre}
                 onChange={handleChange}
                 required
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Input
+                label="Apellido"
+                icon={User}
+                type="text"
+                name="apellido"
+                placeholder="Tu apellido"
+                value={form.apellido}
+                onChange={handleChange}
+                required
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                required
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            <Input
+              label="Correo electrónico"
+              icon={Mail}
+              type="email"
+              name="email"
+              placeholder="ejemplo@universidad.edu.co"
+              value={form.email}
+              onChange={handleChange}
+              required
+            />
 
-            <button
+            <Input
+              label="Contraseña"
+              icon={Lock}
+              type="password"
+              name="password"
+              placeholder="Crea una contraseña"
+              value={form.password}
+              onChange={handleChange}
+              required
+            />
+
+            <Button
               type="submit"
-              disabled={cargando}
-              className="w-full bg-[#1F3864] text-white py-2 rounded-md text-sm font-medium hover:bg-blue-900 transition disabled:opacity-50"
+              loading={cargando}
+              className="w-full mt-1 hover:-translate-y-0.5 active:translate-y-0"
             >
               {cargando ? 'Registrando...' : 'Crear cuenta'}
-            </button>
+              {!cargando && <ArrowRight className="w-4 h-4" aria-hidden="true" />}
+            </Button>
           </form>
 
-          <p className="mt-4 text-sm text-center text-gray-500">
+          <p className="mt-6 text-sm text-center text-ink-500">
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login" className="text-blue-700 hover:underline font-medium">
+            <Link to="/login" className="text-primary-700 hover:underline font-semibold">
               Inicia sesión
             </Link>
           </p>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </AuthShell>
   );
 }

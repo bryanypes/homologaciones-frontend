@@ -1,7 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Pencil } from 'lucide-react';
 import client from '../../api/client';
 import Navbar from '../../components/Navbar';
+import UploadPDF from '../../components/UploadPDF';
+import { useFeedback } from '../../context/FeedbackContext';
+import PageHeader from '../../components/ui/PageHeader';
+import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import EmptyState from '../../components/ui/EmptyState';
+import Stepper from '../../components/ui/Stepper';
+import { Input, Select } from '../../components/ui/Field';
 
 const DESTINO_AUTONOMA = 'Corporación Universitaria Autónoma del Cauca';
 const INSTITUCIONES_FALLBACK = [
@@ -19,8 +29,19 @@ const PROGRAMAS_FALLBACK = [
   'Otro',
 ];
 
+const PASOS = ['Datos personales', 'Institución de origen', 'Institución de destino', 'Documentos', 'Revisión', 'Confirmación'];
+const MAX_DOCUMENTOS = 4;
+
 export default function NuevaSolicitud() {
   const navigate = useNavigate();
+  const { showError } = useFeedback();
+  const [paso, setPaso] = useState(0);
+  const tituloPasoRef = useRef(null);
+
+  useEffect(() => {
+    tituloPasoRef.current?.focus();
+  }, [paso]);
+
   const [form, setForm] = useState({
     cedula: '',
     telefono: '',
@@ -41,11 +62,17 @@ export default function NuevaSolicitud() {
   const [mostrarOtroOrigen, setMostrarOtroOrigen] = useState(false);
   const [mostrarOtroProgramaOrigen, setMostrarOtroProgramaOrigen] = useState(false);
   const [mostrarOtroProgramaDestino, setMostrarOtroProgramaDestino] = useState(false);
-  const [error, setError] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [cargandoInstituciones, setCargandoInstituciones] = useState(true);
   const [cargandoProgramas, setCargandoProgramas] = useState(true);
   const [bloqueado, setBloqueado] = useState(false);
+
+  const [notasBuffer, setNotasBuffer] = useState([]);
+  const [progresoActual, setProgresoActual] = useState(null); // { index, total, pct }
+  const [pasoConfirmado, setPasoConfirmado] = useState(false);
+  const [solicitudCreadaId, setSolicitudCreadaId] = useState(null);
+  const [erroresSubida, setErroresSubida] = useState([]);
+  const [envioExitoso, setEnvioExitoso] = useState(false);
 
   const getInstitucionLabel = (item) => {
     if (typeof item === 'string') return item;
@@ -266,9 +293,28 @@ export default function NuevaSolicitud() {
     return String(errorValue);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
+  const canAdvanceOrigen = mostrarOtroOrigen
+    ? form.institucion_origen.trim().length > 0
+    : Boolean(form.institucion_origen_id);
+  const canAdvanceProgramaOrigen = mostrarOtroProgramaOrigen
+    ? form.programa_origen.trim().length > 0
+    : Boolean(form.programa_origen_id);
+  const canAdvanceDestino = Boolean(form.institucion_destino_id) && (
+    mostrarOtroProgramaDestino ? form.programa_destino.trim().length > 0 : Boolean(form.programa_destino_id)
+  );
+
+  const puedeAvanzar = {
+    0: true,
+    1: canAdvanceOrigen && canAdvanceProgramaOrigen,
+    2: canAdvanceDestino,
+    3: true,
+    4: true,
+  }[paso] ?? true;
+
+  const irSiguiente = () => setPaso((p) => Math.min(p + 1, PASOS.length - 1));
+  const irAtras = () => setPaso((p) => Math.max(p - 1, 0));
+
+  const handleConfirmar = async () => {
     setCargando(true);
     try {
       const payload = {
@@ -303,102 +349,130 @@ export default function NuevaSolicitud() {
       if (!solicitudId) {
         throw new Error('No se pudo obtener el ID de la solicitud creada.');
       }
-      navigate(`/solicitudes/${solicitudId}`);
+      setSolicitudCreadaId(solicitudId);
+
+      const fallos = [];
+      for (let i = 0; i < notasBuffer.length; i++) {
+        const archivo = notasBuffer[i];
+        setProgresoActual({ index: i + 1, total: notasBuffer.length, pct: 0 });
+        try {
+          const formData = new FormData();
+          formData.append('file', archivo);
+          await client.post(`/documentos/${solicitudId}/notas`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (evt) => {
+              if (evt.total) {
+                const pct = Math.round((evt.loaded / evt.total) * 100);
+                setProgresoActual((prev) => (prev ? { ...prev, pct } : prev));
+              }
+            },
+          });
+        } catch {
+          fallos.push(archivo.name);
+        }
+      }
+      setErroresSubida(fallos);
+
+      try {
+        await client.post(`/solicitudes/${solicitudId}/enviar`);
+        setEnvioExitoso(true);
+      } catch {
+        setEnvioExitoso(false);
+      }
+
+      setPasoConfirmado(true);
     } catch (err) {
       const apiError = err.response?.data?.detail ?? err.response?.data ?? err.message;
-      setError(formatApiError(apiError));
+      showError(formatApiError(apiError));
     } finally {
       setCargando(false);
+      setProgresoActual(null);
     }
   };
 
   if (bloqueado) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="max-w-2xl mx-auto px-4 py-8">
-          <div className="flex items-center gap-3 mb-6">
-            <button onClick={() => navigate('/solicitudes')} className="text-gray-400 hover:text-gray-600 text-sm">
-              ← Volver
-            </button>
-            <h1 className="text-xl font-semibold text-gray-800">Nueva solicitud</h1>
-          </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-6 py-6 text-center">
-            <p className="text-amber-800 font-medium mb-2">Ya tienes una solicitud activa</p>
-            <p className="text-amber-700 text-sm mb-4">
-              Solo puedes crear una nueva solicitud si tu solicitud anterior fue rechazada.
-            </p>
-            <button
-              onClick={() => navigate('/solicitudes')}
-              className="px-4 py-2 bg-[#1F3864] text-white text-sm rounded-md hover:bg-blue-900"
-            >
-              Ver mis solicitudes
-            </button>
-          </div>
+        <main id="main-content" tabIndex={-1} className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+          <PageHeader title="Nueva solicitud" onBack={() => navigate('/solicitudes')} />
+          <Card>
+            <EmptyState
+              mascot="/img/Iaerror.svg"
+              title="Ya tienes una solicitud activa"
+              description="Solo puedes crear una nueva solicitud si tu solicitud anterior fue rechazada."
+              action={<Button onClick={() => navigate('/solicitudes')}>Ver mis solicitudes</Button>}
+            />
+          </Card>
         </main>
       </div>
     );
   }
 
+  if (pasoConfirmado) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main id="main-content" tabIndex={-1} className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+          <Card className="text-center py-10">
+            <img src="/img/Iaaprobada.svg" alt="" className="w-20 h-20 mx-auto mb-5 animate-scale-in" />
+            <h1 className="text-xl font-semibold text-ink-900 mb-2">
+              {envioExitoso ? '¡Tu solicitud fue creada y enviada!' : '¡Tu solicitud fue creada!'}
+            </h1>
+            <p className="text-sm text-ink-500 max-w-sm mx-auto">
+              {envioExitoso
+                ? 'La recibimos correctamente. Un coordinador la revisará pronto y podrás seguir su estado en cualquier momento.'
+                : 'Se guardó como borrador. Termina de enviarla desde el detalle de tu solicitud cuando estés listo.'}
+            </p>
+            {erroresSubida.length > 0 && (
+              <Alert tone="warning" className="mt-5 text-left max-w-sm mx-auto">
+                No se pudieron subir {erroresSubida.length} documento(s) ({erroresSubida.join(', ')}). Podrás subirlos de nuevo desde el detalle de tu solicitud.
+              </Alert>
+            )}
+            <Button onClick={() => navigate(`/solicitudes/${solicitudCreadaId}`)} className="mt-6">
+              Ver mi solicitud
+            </Button>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  const val = (v) => v || 'No especificado';
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="max-w-2xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate('/solicitudes')} className="text-gray-400 hover:text-gray-600 text-sm">
-            ← Volver
-          </button>
-          <h1 className="text-xl font-semibold text-gray-800">Nueva solicitud</h1>
-        </div>
+      <main id="main-content" tabIndex={-1} className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        <PageHeader title="Nueva solicitud" onBack={() => navigate('/solicitudes')} />
 
-        {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">
-            {error}
-          </div>
-        )}
+        <Stepper steps={PASOS} current={paso} />
 
-        <div className="bg-white rounded-lg border border-gray-200 px-6 py-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cédula</label>
-              <input
-                type="text"
-                name="cedula"
-                value={form.cedula}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-              <input
-                type="text"
-                name="telefono"
-                value={form.telefono}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Correo de contacto</label>
-              <input
+        <Card>
+          {paso === 0 && (
+            <div className="flex flex-col gap-4">
+              <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Datos personales</h2>
+              <Input label="Cédula" type="text" name="cedula" value={form.cedula} onChange={handleChange} />
+              <Input label="Teléfono" type="text" name="telefono" value={form.telefono} onChange={handleChange} />
+              <Input
+                label="Correo de contacto"
                 type="email"
                 name="correo_contacto"
                 value={form.correo_contacto}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Institución de origen</label>
-              <select
+          {paso === 1 && (
+            <div className="flex flex-col gap-4">
+              <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Institución de origen</h2>
+              <Select
+                label="Institución de origen"
+                required
                 name="institucion_origen"
                 value={mostrarOtroOrigen ? 'Otro' : form.institucion_origen_id || ''}
                 onChange={handleOrigenChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Seleccione una institución</option>
                 {cargandoInstituciones ? (
@@ -411,31 +485,27 @@ export default function NuevaSolicitud() {
                   ))
                 )}
                 <option value="Otro">Otro</option>
-              </select>
-            </div>
+              </Select>
 
-            {mostrarOtroOrigen && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Otra institución de origen</label>
-                <input
+              {mostrarOtroOrigen && (
+                <Input
+                  label="Otra institución de origen"
+                  required
                   type="text"
                   name="institucion_origen"
                   value={form.institucion_origen}
                   onChange={handleChange}
                   placeholder="Escriba la institución de origen"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            )}
+              )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Programa de origen</label>
-              <select
+              <Select
+                label="Programa de origen"
+                required
                 name="programa_origen"
                 value={mostrarOtroProgramaOrigen ? 'Otro' : form.programa_origen_id || ''}
                 onChange={handleProgramaOrigenChange}
                 disabled={programaOrigenDisabled}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
               >
                 <option value="">Seleccione un programa</option>
                 {cargandoProgramas ? (
@@ -450,30 +520,32 @@ export default function NuevaSolicitud() {
                   ))
                 )}
                 <option value="Otro">Otro</option>
-              </select>
-            </div>
+              </Select>
 
-            {mostrarOtroProgramaOrigen && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Otro programa de origen</label>
-                <input
+              {mostrarOtroProgramaOrigen && (
+                <Input
+                  label="Otro programa de origen"
+                  required
                   type="text"
                   name="programa_origen"
                   value={form.programa_origen}
                   onChange={handleChange}
                   placeholder="Escriba el programa de origen"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Institución de destino</label>
-              <select
+          {paso === 2 && (
+            <div className="flex flex-col gap-4">
+              <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Institución de destino</h2>
+              <Select
+                label="Institución de destino"
+                required
                 name="institucion_destino"
                 value={form.institucion_destino_id || ''}
                 onChange={handleDestinoChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                hint="El destino solo puede ser la Autónoma."
               >
                 <option value="">Seleccione una institución</option>
                 {instituciones
@@ -483,18 +555,15 @@ export default function NuevaSolicitud() {
                       {getInstitucionLabel(institucion)}
                     </option>
                   ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">El destino solo puede ser la Autónoma.</p>
-            </div>
+              </Select>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Programa de destino</label>
-              <select
+              <Select
+                label="Programa de destino"
+                required
                 name="programa_destino"
                 value={mostrarOtroProgramaDestino ? 'Otro' : form.programa_destino_id || ''}
                 onChange={handleProgramaDestinoChange}
                 disabled={programaDestinoDisabled}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
               >
                 <option value="">Seleccione un programa</option>
                 {cargandoProgramas ? (
@@ -509,41 +578,150 @@ export default function NuevaSolicitud() {
                   ))
                 )}
                 <option value="Otro">Otro</option>
-              </select>
-            </div>
+              </Select>
 
-            {mostrarOtroProgramaDestino && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Otro programa de destino</label>
-                <input
+              {mostrarOtroProgramaDestino && (
+                <Input
+                  label="Otro programa de destino"
+                  required
                   type="text"
                   name="programa_destino"
                   value={form.programa_destino}
                   onChange={handleChange}
                   placeholder="Escriba el programa de destino"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-2">
-              <button
-                type="button"
-                onClick={() => navigate('/solicitudes')}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={cargando}
-                className="flex-1 px-4 py-2 bg-[#1F3864] text-white text-sm rounded-md hover:bg-blue-900 disabled:opacity-50"
-              >
-                {cargando ? 'Creando...' : 'Crear solicitud'}
-              </button>
+              )}
             </div>
-          </form>
-        </div>
+          )}
+
+          {paso === 3 && (
+            <div className="flex flex-col gap-4">
+              <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Documentos</h2>
+              <p className="text-sm text-ink-500 -mt-2">
+                Sube tu certificado de notas académicas (hasta {MAX_DOCUMENTOS} archivos). Este paso es opcional: también puedes subirlos después desde el detalle de tu solicitud.
+              </p>
+
+              {notasBuffer.map((archivo, i) => (
+                <UploadPDF
+                  key={i}
+                  label={`Certificado de notas — documento ${i + 1}`}
+                  file={archivo}
+                  onRemove={() => setNotasBuffer((prev) => prev.filter((_, idx) => idx !== i))}
+                  onFile={(nuevo) => setNotasBuffer((prev) => prev.map((f, idx) => idx === i ? nuevo : f))}
+                />
+              ))}
+
+              {notasBuffer.length < MAX_DOCUMENTOS && (
+                <UploadPDF
+                  label={`Certificado de notas — documento ${notasBuffer.length + 1}`}
+                  hint="Solo PDF."
+                  onFile={(archivo) => setNotasBuffer((prev) => [...prev, archivo])}
+                />
+              )}
+            </div>
+          )}
+
+          {paso === 4 && (
+            <div className="flex flex-col gap-5">
+              <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Revisión</h2>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-ink-400 uppercase tracking-wide">Datos personales</p>
+                  <button type="button" onClick={() => setPaso(0)} className="text-xs text-primary-700 hover:underline inline-flex items-center gap-1">
+                    <Pencil className="w-3 h-3" aria-hidden="true" /> Editar
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-ink-400 text-xs">Cédula</p><p className="text-ink-800 font-medium">{val(form.cedula)}</p></div>
+                  <div><p className="text-ink-400 text-xs">Teléfono</p><p className="text-ink-800 font-medium">{val(form.telefono)}</p></div>
+                  <div className="sm:col-span-2"><p className="text-ink-400 text-xs">Correo de contacto</p><p className="text-ink-800 font-medium">{val(form.correo_contacto)}</p></div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-ink-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-ink-400 uppercase tracking-wide">Institución de origen</p>
+                  <button type="button" onClick={() => setPaso(1)} className="text-xs text-primary-700 hover:underline inline-flex items-center gap-1">
+                    <Pencil className="w-3 h-3" aria-hidden="true" /> Editar
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-ink-400 text-xs">Institución</p><p className="text-ink-800 font-medium">{val(form.institucion_origen)}</p></div>
+                  <div><p className="text-ink-400 text-xs">Programa</p><p className="text-ink-800 font-medium">{val(form.programa_origen)}</p></div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-ink-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-ink-400 uppercase tracking-wide">Institución de destino</p>
+                  <button type="button" onClick={() => setPaso(2)} className="text-xs text-primary-700 hover:underline inline-flex items-center gap-1">
+                    <Pencil className="w-3 h-3" aria-hidden="true" /> Editar
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-ink-400 text-xs">Institución</p><p className="text-ink-800 font-medium">{val(form.institucion_destino)}</p></div>
+                  <div><p className="text-ink-400 text-xs">Programa</p><p className="text-ink-800 font-medium">{val(form.programa_destino)}</p></div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-ink-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-ink-400 uppercase tracking-wide">Documentos</p>
+                  <button type="button" onClick={() => setPaso(3)} className="text-xs text-primary-700 hover:underline inline-flex items-center gap-1">
+                    <Pencil className="w-3 h-3" aria-hidden="true" /> Editar
+                  </button>
+                </div>
+                <p className="text-sm text-ink-700">
+                  {notasBuffer.length === 0 ? 'Ningún documento seleccionado.' : `${notasBuffer.length} documento(s) seleccionado(s).`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {paso === 5 && (
+            <div className="flex flex-col gap-4">
+              <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Confirmación</h2>
+              <p className="text-sm text-ink-500">
+                Revisa que todo esté correcto y confirma para crear tu solicitud de homologación.
+                {notasBuffer.length > 0 && ' Tus documentos se subirán automáticamente.'}
+              </p>
+              {progresoActual && (
+                <div className="rounded-xl border border-ink-100 bg-ink-50 px-4 py-3">
+                  <p className="text-sm text-ink-700 mb-2">
+                    Subiendo documento {progresoActual.index} de {progresoActual.total}...
+                  </p>
+                  <div className="h-1.5 rounded-full bg-ink-200 overflow-hidden">
+                    <div className="h-full bg-primary-600 rounded-full transition-all" style={{ width: `${progresoActual.pct}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3 mt-6 pt-4 border-t border-ink-100">
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1"
+              onClick={paso === 0 ? () => navigate('/solicitudes') : irAtras}
+              disabled={cargando}
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              {paso === 0 ? 'Cancelar' : 'Atrás'}
+            </Button>
+            {paso < PASOS.length - 1 ? (
+              <Button type="button" className="flex-1" onClick={irSiguiente} disabled={!puedeAvanzar}>
+                Siguiente
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </Button>
+            ) : (
+              <Button type="button" className="flex-1" onClick={handleConfirmar} loading={cargando}>
+                {cargando ? 'Creando solicitud...' : 'Confirmar y crear solicitud'}
+              </Button>
+            )}
+          </div>
+        </Card>
       </main>
     </div>
   );

@@ -1,14 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 import client from '../../api/client';
 import Navbar from '../../components/Navbar';
 import EstadoBadge from '../../components/EstadoBadge';
-import Spinner from '../../components/Spinner';
+import { useFeedback } from '../../context/FeedbackContext';
+import PageHeader from '../../components/ui/PageHeader';
+import Button from '../../components/ui/Button';
+import Pagination from '../../components/ui/Pagination';
+import EmptyState from '../../components/ui/EmptyState';
+import ClickableRow from '../../components/ui/ClickableRow';
+import { SkeletonTable } from '../../components/ui/Skeleton';
+import { Select, Input } from '../../components/ui/Field';
 
 const ESTADOS = ['', 'borrador', 'enviada', 'en_revision', 'procesando_ia', 'pendiente_rector', 'aprobada', 'rechazada'];
 
 export default function SolicitudesCoordinador() {
   const navigate = useNavigate();
+  const { showError } = useFeedback();
   const [solicitudes, setSolicitudes] = useState([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -16,7 +25,6 @@ export default function SolicitudesCoordinador() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(null);
   const POR_PAGINA = 10;
 
   const cargar = async (pag = 1) => {
@@ -31,7 +39,7 @@ export default function SolicitudesCoordinador() {
       setTotal(data.total ?? (data.items ?? data).length);
       setPagina(pag);
     } catch {
-      setError('No se pudieron cargar las solicitudes.');
+      showError('No se pudieron cargar las solicitudes.');
     } finally {
       setCargando(false);
     }
@@ -39,107 +47,89 @@ export default function SolicitudesCoordinador() {
 
   useEffect(() => { cargar(1); }, [filtroEstado, fechaDesde, fechaHasta]);
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold text-gray-800 mb-6">Solicitudes</h1>
+  const resumenPorEstado = useMemo(() => {
+    const conteo = {};
+    solicitudes.forEach((s) => { conteo[s.estado] = (conteo[s.estado] ?? 0) + 1; });
+    return Object.entries(conteo);
+  }, [solicitudes]);
 
-        {/* Filtros */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <select
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main id="main-content" tabIndex={-1} className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <PageHeader title="Solicitudes" />
+
+        {!cargando && solicitudes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            <span className="text-xs text-ink-500">En esta página:</span>
+            {resumenPorEstado.map(([estado, count]) => (
+              <span key={estado} className="inline-flex items-center gap-1">
+                <EstadoBadge estado={estado} />
+                <span className="text-xs text-ink-500">×{count}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-end gap-3 mb-6">
+          <Select label="Estado" className="min-w-[180px]" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
             <option value="">Todos los estados</option>
             {ESTADOS.filter(Boolean).map((e) => (
-              <option key={e} value={e}>{e.replace('_', ' ')}</option>
+              <option key={e} value={e}>{e.replace(/_/g, ' ')}</option>
             ))}
-          </select>
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          </Select>
+          <Input label="Desde" type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+          <Input label="Hasta" type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
           {(filtroEstado || fechaDesde || fechaHasta) && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => { setFiltroEstado(''); setFechaDesde(''); setFechaHasta(''); }}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
             >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
               Limpiar filtros
-            </button>
+            </Button>
           )}
         </div>
 
-        {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">{error}</div>
-        )}
-
         {cargando ? (
-          <Spinner />
+          <SkeletonTable rows={5} cols={5} />
         ) : (
           <>
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
+            <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-card">
+              <table className="min-w-full divide-y divide-ink-100 text-sm">
+                <thead className="bg-ink-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estudiante</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa origen</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa destino</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Estudiante</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Programa origen</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Programa destino</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Estado</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Fecha</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
+                <tbody className="divide-y divide-ink-100">
                   {solicitudes.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No hay solicitudes.</td>
-                    </tr>
-                  ) : solicitudes.map((s) => (
-                    <tr
-                      key={s.id}
-                      onClick={() => navigate(`/coordinador/solicitudes/${s.id}`)}
-                      className="hover:bg-gray-50 cursor-pointer"
-                    >
-                      <td className="px-4 py-3 text-gray-700">{s.estudiante?.nombre ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{s.programa_origen ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{s.programa_destino ?? '—'}</td>
-                      <td className="px-4 py-3"><EstadoBadge estado={s.estado} /></td>
-                      <td className="px-4 py-3 text-gray-500">
-                        {s.creado_en ? new Date(s.creado_en).toLocaleDateString('es-CO') : '—'}
+                      <td colSpan={5} className="px-4 py-0">
+                        <EmptyState title="No hay solicitudes." />
                       </td>
                     </tr>
+                  ) : solicitudes.map((s) => (
+                    <ClickableRow key={s.id} onClick={() => navigate(`/coordinador/solicitudes/${s.id}`)}>
+                      <td className="px-4 py-3.5 text-ink-700">{[s.nombre_estudiante, s.apellido_estudiante].filter(Boolean).join(' ') || '—'}</td>
+                      <td className="px-4 py-3.5 text-ink-700">{s.programa_origen ?? '—'}</td>
+                      <td className="px-4 py-3.5 text-ink-700">{s.programa_destino ?? '—'}</td>
+                      <td className="px-4 py-3.5"><EstadoBadge estado={s.estado} /></td>
+                      <td className="px-4 py-3.5 text-ink-500">
+                        {s.creado_en ? new Date(s.creado_en).toLocaleDateString('es-CO') : '—'}
+                      </td>
+                    </ClickableRow>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Paginación */}
-            {total > POR_PAGINA && (
-              <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
-                <span>Página {pagina} de {Math.ceil(total / POR_PAGINA)} — {total} registros</span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => cargar(pagina - 1)}
-                    disabled={pagina <= 1}
-                    className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                  >Anterior</button>
-                  <button
-                    onClick={() => cargar(pagina + 1)}
-                    disabled={pagina >= Math.ceil(total / POR_PAGINA)}
-                    className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                  >Siguiente</button>
-                </div>
-              </div>
-            )}
+            <Pagination pagina={pagina} total={total} porPagina={POR_PAGINA} onPageChange={cargar} />
           </>
         )}
       </main>
