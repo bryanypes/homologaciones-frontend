@@ -1,3 +1,4 @@
+import { User, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../lib/cn';
@@ -75,13 +76,27 @@ export default function Navbar() {
           </nav>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate('/perfil')}
-            className="text-right hidden sm:block hover:opacity-70 transition-opacity rounded-lg"
+            aria-label={`Mi perfil, ${nombre}`}
+            title="Ver mi perfil"
+            className={cn(
+              'flex items-center gap-2 sm:gap-2.5 rounded-full sm:rounded-xl transition-colors min-h-11',
+              'border border-ink-200 bg-white pl-1 pr-3 sm:pr-2.5 py-1',
+              'hover:bg-ink-50 hover:border-ink-300',
+              location.pathname === '/perfil' && 'bg-primary-50 border-primary-200',
+            )}
           >
-            <p className="text-sm font-medium leading-tight text-ink-900">{nombre}</p>
-            <p className="text-xs text-ink-500">{ROL_ETIQUETA[rol] || rol}</p>
+            <span className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
+              <User className="w-4.5 h-4.5" aria-hidden="true" />
+            </span>
+            <span className="sm:hidden text-sm font-semibold text-ink-800">Mi perfil</span>
+            <span className="hidden sm:block text-left">
+              <p className="text-sm font-medium leading-tight text-ink-900">{nombre}</p>
+              <p className="text-xs text-ink-500">{ROL_ETIQUETA[rol] || rol}</p>
+            </span>
+            <ChevronRight className="hidden sm:block w-4 h-4 text-ink-300 shrink-0" aria-hidden="true" />
           </button>
           <button
             onClick={handleLogout}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Layers, GraduationCap, Clock3, CheckCircle2 } from 'lucide-react';
+import { Layers, GraduationCap, Clock3, CheckCircle2, Trash2 } from 'lucide-react';
 import client from '../../api/client';
 import Navbar from '../../components/Navbar';
 import EstadoBadge from '../../components/EstadoBadge';
@@ -17,10 +17,10 @@ import Card, { CardHeader } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Alert from '../../components/ui/Alert';
 import StatTile from '../../components/ui/StatTile';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import { cn } from '../../lib/cn';
 import { formatFecha } from '../../lib/format';
 import { ESTADO_HERO } from '../../lib/estadoHero';
-import { obtenerCreditosPrograma } from '../../lib/programaCreditos';
 
 const ESTADOS_CON_HOMOLOGACION = ['revision_coordinador', 'pendiente_rector', 'aprobada', 'rechazada'];
 
@@ -45,7 +45,6 @@ export default function DetalleSolicitud() {
   const navigate = useNavigate();
   const [solicitud, setSolicitud] = useState(null);
   const [resumen, setResumen] = useState(null);
-  const [creditosPrograma, setCreditosPrograma] = useState(null);
   const [historial, setHistorial] = useState([]);
   const [documentosState, setDocumentosState] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -54,8 +53,8 @@ export default function DetalleSolicitud() {
   const [subiendo, setSubiendo] = useState(false);
   const [progresoSubida, setProgresoSubida] = useState(0);
   const [enviando, setEnviando] = useState(false);
-  const [descargandoResolucion, setDescargandoResolucion] = useState(false);
   const [eliminando, setEliminando] = useState(new Set());
+  const [confirmarEliminarDoc, setConfirmarEliminarDoc] = useState(null);
 
   const cargarDocumentos = async () => {
     const endpoints = [`/documentos/${id}`, `/solicitudes/${id}/documentos`];
@@ -90,7 +89,6 @@ export default function DetalleSolicitud() {
       const { data: sol } = await client.get(`/solicitudes/${id}`);
       setSolicitud(sol);
       await cargarResumen(sol.estado);
-      obtenerCreditosPrograma(sol.programa_destino_id).then(setCreditosPrograma);
     } catch (err) {
       console.warn('Error al cargar solicitud:', err);
       setErrorCarga('No se pudo cargar la solicitud.');
@@ -137,23 +135,6 @@ export default function DetalleSolicitud() {
     }
   };
 
-  const handleDescargarResolucion = async () => {
-    setDescargandoResolucion(true);
-    try {
-      const { data } = await client.post(`/homologaciones/${id}/generar-resolucion`, {}, { responseType: 'blob' });
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `resolucion_homologacion.docx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      showError('Error al descargar la resolución.');
-    } finally {
-      setDescargandoResolucion(false);
-    }
-  };
-
   const handleDescargar = async (doc) => {
     try {
       const { data } = await client.get(`/documentos/${id}/${doc.id}/descargar`, { responseType: 'blob' });
@@ -177,6 +158,7 @@ export default function DetalleSolicitud() {
       showError(err.response?.data?.detail || 'Error al eliminar el documento.');
     } finally {
       setEliminando((prev) => { const n = new Set(prev); n.delete(doc.id); return n; });
+      setConfirmarEliminarDoc(null);
     }
   };
 
@@ -267,27 +249,18 @@ export default function DetalleSolicitud() {
             hero.tono === 'success' && 'border-success-200',
             hero.tono === 'danger' && 'border-danger-200',
           )}>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <AIMessage
-                mascot={hero.mascot}
-                size="lg"
-                decorate
-                animate={hero.pulse ? 'animate-pulse' : 'animate-float'}
-                className="flex-1 min-w-[240px]"
-              >
-                <p className={cn(
-                  'font-medium',
-                  hero.tono === 'success' ? 'text-success-700' : hero.tono === 'danger' ? 'text-danger-700' : 'text-ink-900',
-                )}>{hero.titulo}</p>
-                <p className="text-sm text-ink-500 mt-0.5">{hero.detalle || (hero.tono === 'danger' && solicitud.observaciones)}</p>
-              </AIMessage>
-              {solicitud.estado === 'aprobada' && (
-                <Button onClick={handleDescargarResolucion} loading={descargandoResolucion} className="whitespace-nowrap">
-                  {!descargandoResolucion && <Download className="w-4 h-4" aria-hidden="true" />}
-                  {descargandoResolucion ? 'Generando...' : 'Descargar resolución'}
-                </Button>
-              )}
-            </div>
+            <AIMessage
+              mascot={hero.mascot}
+              size="lg"
+              decorate
+              animate={hero.pulse ? 'animate-pulse' : 'animate-float'}
+            >
+              <p className={cn(
+                'font-medium',
+                hero.tono === 'success' ? 'text-success-700' : hero.tono === 'danger' ? 'text-danger-700' : 'text-ink-900',
+              )}>{hero.titulo}</p>
+              <p className="text-sm text-ink-500 mt-0.5">{hero.detalle || (hero.tono === 'danger' && solicitud.observaciones)}</p>
+            </AIMessage>
           </Card>
         )}
 
@@ -306,7 +279,7 @@ export default function DetalleSolicitud() {
               <StatTile icon={Clock3} value={resumen.por_estado.pendiente?.cantidad ?? 0} label="Materias por revisar" tone="accent" />
               <StatTile
                 icon={GraduationCap}
-                value={creditosPrograma ? `${resumen.estadisticas.total_creditos_homologados} / ${creditosPrograma}` : resumen.estadisticas.total_creditos_homologados}
+                value={resumen.estadisticas.total_creditos_homologados}
                 label="Créditos homologados"
                 tone="success"
               />
@@ -391,7 +364,7 @@ export default function DetalleSolicitud() {
                   label={doc.nombre_original ?? doc.nombre ?? 'Documento'}
                   existing={doc}
                   onDownload={() => handleDescargar(doc)}
-                  onRemove={puedeSubirDocs ? () => handleEliminar(doc) : undefined}
+                  onRemove={puedeSubirDocs ? () => setConfirmarEliminarDoc(doc) : undefined}
                   disabled={eliminando.has(doc.id)}
                 />
               ))}
@@ -447,6 +420,18 @@ export default function DetalleSolicitud() {
           </Card>
         )}
       </main>
+
+      <ConfirmModal
+        open={!!confirmarEliminarDoc}
+        title="Eliminar documento"
+        message={confirmarEliminarDoc ? `¿Eliminar "${confirmarEliminarDoc.nombre_original ?? confirmarEliminarDoc.nombre ?? 'este documento'}"? Esta acción no se puede deshacer.` : ''}
+        confirmLabel="Eliminar"
+        tone="danger"
+        icon={Trash2}
+        loading={confirmarEliminarDoc ? eliminando.has(confirmarEliminarDoc.id) : false}
+        onConfirm={() => handleEliminar(confirmarEliminarDoc)}
+        onCancel={() => setConfirmarEliminarDoc(null)}
+      />
     </div>
   );
 }

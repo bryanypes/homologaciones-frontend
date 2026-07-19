@@ -18,7 +18,7 @@ export default function Perfil() {
   const [perfil, setPerfil] = useState(null);
   const [cargando, setCargando] = useState(true);
 
-  const [infoForm, setInfoForm] = useState({ nombre: '', apellido: '' });
+  const [infoForm, setInfoForm] = useState({ nombre: '', apellido: '', cedula: '', telefono: '' });
   const [guardandoInfo, setGuardandoInfo] = useState(false);
 
   const [passForm, setPassForm] = useState({ password_actual: '', password_nueva: '', confirmar: '' });
@@ -34,7 +34,12 @@ export default function Perfil() {
     client.get('/usuarios/perfil/mio')
       .then(({ data }) => {
         setPerfil(data);
-        setInfoForm({ nombre: data.nombre ?? '', apellido: data.apellido ?? '' });
+        setInfoForm({
+          nombre: data.nombre ?? '',
+          apellido: data.apellido ?? '',
+          cedula: data.cedula ?? '',
+          telefono: data.telefono ?? '',
+        });
       })
       .catch(() => navigate(rutaVolver))
       .finally(() => setCargando(false));
@@ -47,6 +52,8 @@ export default function Perfil() {
       const { data } = await client.patch('/usuarios/perfil/mio', {
         nombre: infoForm.nombre,
         apellido: infoForm.apellido,
+        cedula: infoForm.cedula || null,
+        telefono: infoForm.telefono || null,
       });
       setPerfil(data);
       actualizarNombre(`${data.nombre} ${data.apellido}`);
@@ -111,6 +118,19 @@ export default function Perfil() {
               value={infoForm.apellido}
               onChange={(e) => setInfoForm({ ...infoForm, apellido: e.target.value })}
               required
+            />
+            <Input
+              label="Cédula"
+              inputMode="numeric"
+              hint="Solo números. Debe ser única en el sistema."
+              value={infoForm.cedula}
+              onChange={(e) => setInfoForm({ ...infoForm, cedula: e.target.value.replace(/\D/g, '') })}
+            />
+            <Input
+              label="Teléfono"
+              inputMode="tel"
+              value={infoForm.telefono}
+              onChange={(e) => setInfoForm({ ...infoForm, telefono: e.target.value })}
             />
             <div>
               <Button type="submit" loading={guardandoInfo}>

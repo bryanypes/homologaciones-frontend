@@ -32,8 +32,8 @@ export const ESTADO_HERO = {
   },
   aprobada: {
     mascot: '/img/Iaaprobada.svg',
-    titulo: 'Tu homologación fue aprobada',
-    detalle: 'Descarga la resolución oficial de homologación.',
+    titulo: '¡Tu homologación fue aprobada!',
+    detalle: 'Tu coordinador te hará llegar la resolución oficial.',
     tono: 'success',
   },
   rechazada: {

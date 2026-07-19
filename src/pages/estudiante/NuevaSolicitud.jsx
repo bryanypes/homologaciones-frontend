@@ -12,6 +12,7 @@ import Alert from '../../components/ui/Alert';
 import EmptyState from '../../components/ui/EmptyState';
 import Stepper from '../../components/ui/Stepper';
 import { Input, Select } from '../../components/ui/Field';
+import { sanitizeEmail } from '../../lib/email';
 
 const DESTINO_AUTONOMA = 'Corporación Universitaria Autónoma del Cauca';
 const INSTITUCIONES_FALLBACK = [
@@ -187,7 +188,10 @@ export default function NuevaSolicitud() {
     verificarSolicitudActiva();
   }, []);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: name === 'correo_contacto' ? sanitizeEmail(value) : value });
+  };
 
   const handleOrigenChange = (e) => {
     const value = e.target.value;
@@ -452,7 +456,15 @@ export default function NuevaSolicitud() {
           {paso === 0 && (
             <div className="flex flex-col gap-4">
               <h2 ref={tituloPasoRef} tabIndex={-1} className="text-lg font-semibold text-ink-900 mb-1 focus:outline-none">Datos personales</h2>
-              <Input label="Cédula" type="text" name="cedula" value={form.cedula} onChange={handleChange} />
+              <Input
+                label="Cédula"
+                type="text"
+                inputMode="numeric"
+                hint="Solo números."
+                name="cedula"
+                value={form.cedula}
+                onChange={(e) => setForm({ ...form, cedula: e.target.value.replace(/\D/g, '') })}
+              />
               <Input label="Teléfono" type="text" name="telefono" value={form.telefono} onChange={handleChange} />
               <Input
                 label="Correo de contacto"
