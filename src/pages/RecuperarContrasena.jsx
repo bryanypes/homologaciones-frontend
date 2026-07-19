@@ -6,6 +6,7 @@ import { useFeedback } from '../context/FeedbackContext';
 import AuthShell from '../components/ui/AuthShell';
 import Button from '../components/ui/Button';
 import { Input } from '../components/ui/Field';
+import { sanitizeEmail } from '../lib/email';
 
 export default function RecuperarContrasena() {
   const { showError } = useFeedback();
@@ -54,7 +55,7 @@ export default function RecuperarContrasena() {
               name="email"
               placeholder="ejemplo@universidad.edu.co"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
               required
             />
             <Button type="submit" loading={cargando} className="w-full mt-1 hover:-translate-y-0.5 active:translate-y-0">

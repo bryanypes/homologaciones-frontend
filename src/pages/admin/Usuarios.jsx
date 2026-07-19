@@ -13,11 +13,12 @@ import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import { Input, Select } from '../../components/ui/Field';
+import { sanitizeEmail } from '../../lib/email';
 
 const ROLES = ['estudiante', 'coordinador', 'vicerrector', 'admin'];
 
-const FORM_VACIO = { nombre: '', apellido: '', email: '', password: '', rol: 'coordinador' };
-const EDIT_VACIO = { nombre: '', apellido: '', rol: 'coordinador' };
+const FORM_VACIO = { nombre: '', apellido: '', email: '', password: '', cedula: '', telefono: '', rol: 'coordinador' };
+const EDIT_VACIO = { nombre: '', apellido: '', cedula: '', telefono: '', rol: 'coordinador' };
 
 export default function Usuarios() {
   const { showError, showSuccess } = useFeedback();
@@ -37,6 +38,9 @@ export default function Usuarios() {
 
   const [confirmarEliminar, setConfirmarEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(null);
+
+  const [confirmarDesactivar, setConfirmarDesactivar] = useState(null);
+  const [desactivando, setDesactivando] = useState(null);
 
   const POR_PAGINA = 10;
 
@@ -58,13 +62,25 @@ export default function Usuarios() {
 
   useEffect(() => { cargar(1); }, [filtroRol]);
 
-  const handleToggleActivo = async (usuario) => {
+  const handleToggleActivo = (usuario) => {
+    if (usuario.activo) {
+      setConfirmarDesactivar(usuario);
+      return;
+    }
+    aplicarToggleActivo(usuario);
+  };
+
+  const aplicarToggleActivo = async (usuario) => {
+    setDesactivando(usuario.id);
     try {
       await client.patch(`/usuarios/${usuario.id}`, { activo: !usuario.activo });
       showSuccess(`Usuario ${!usuario.activo ? 'activado' : 'desactivado'} correctamente.`);
       cargar(pagina);
     } catch (err) {
       showError(err.response?.data?.detail || 'Error al cambiar estado.');
+    } finally {
+      setDesactivando(null);
+      setConfirmarDesactivar(null);
     }
   };
 
@@ -72,7 +88,7 @@ export default function Usuarios() {
     e.preventDefault();
     setCreando(true);
     try {
-      await client.post('/usuarios/', form);
+      await client.post('/usuarios/', { ...form, cedula: form.cedula || null, telefono: form.telefono || null });
       showSuccess('Usuario creado correctamente.');
       setModalCrear(false);
       setForm(FORM_VACIO);
@@ -86,14 +102,20 @@ export default function Usuarios() {
 
   const abrirEditar = (usuario) => {
     setModalEditar(usuario);
-    setEditForm({ nombre: usuario.nombre, apellido: usuario.apellido, rol: usuario.rol });
+    setEditForm({
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      cedula: usuario.cedula ?? '',
+      telefono: usuario.telefono ?? '',
+      rol: usuario.rol,
+    });
   };
 
   const handleEditar = async (e) => {
     e.preventDefault();
     setEditando(true);
     try {
-      await client.patch(`/usuarios/${modalEditar.id}`, editForm);
+      await client.patch(`/usuarios/${modalEditar.id}`, { ...editForm, cedula: editForm.cedula || null, telefono: editForm.telefono || null });
       showSuccess('Usuario actualizado correctamente.');
       setModalEditar(null);
       cargar(pagina);
@@ -144,7 +166,7 @@ export default function Usuarios() {
         </div>
 
         {cargando ? (
-          <SkeletonTable rows={5} cols={6} />
+          <SkeletonTable rows={5} cols={7} />
         ) : (
           <>
             <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-card">
@@ -153,6 +175,7 @@ export default function Usuarios() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Nombre</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Cédula</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Rol</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Creado</th>
@@ -162,7 +185,7 @@ export default function Usuarios() {
                 <tbody className="divide-y divide-ink-100">
                   {usuarios.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-0">
+                      <td colSpan={7} className="px-4 py-0">
                         <EmptyState title="No hay usuarios." />
                       </td>
                     </tr>
@@ -170,6 +193,7 @@ export default function Usuarios() {
                     <tr key={u.id} className="hover:bg-ink-50/60 transition-colors">
                       <td className="px-4 py-3.5 text-ink-700">{u.nombre} {u.apellido}</td>
                       <td className="px-4 py-3.5 text-ink-700">{u.email}</td>
+                      <td className="px-4 py-3.5 text-ink-500">{u.cedula ?? '—'}</td>
                       <td className="px-4 py-3.5 text-ink-700 capitalize">{u.rol}</td>
                       <td className="px-4 py-3.5">
                         <Badge tone={u.activo ? 'success' : 'neutral'}>{u.activo ? 'Activo' : 'Inactivo'}</Badge>
@@ -183,8 +207,13 @@ export default function Usuarios() {
                             <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                             Editar
                           </Button>
-                          <Button size="sm" variant={u.activo ? 'accent' : 'success'} onClick={() => handleToggleActivo(u)}>
-                            <Power className="w-3.5 h-3.5" aria-hidden="true" />
+                          <Button
+                            size="sm"
+                            variant={u.activo ? 'accent' : 'success'}
+                            onClick={() => handleToggleActivo(u)}
+                            loading={desactivando === u.id}
+                          >
+                            {!(desactivando === u.id) && <Power className="w-3.5 h-3.5" aria-hidden="true" />}
                             {u.activo ? 'Desactivar' : 'Activar'}
                           </Button>
                           <Button size="sm" variant="danger" onClick={() => setConfirmarEliminar(u)} loading={eliminando === u.id}>
@@ -211,8 +240,23 @@ export default function Usuarios() {
             <Input label="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
             <Input label="Apellido" value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} required />
           </div>
-          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: sanitizeEmail(e.target.value) })} required />
           <Input label="Contraseña" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Cédula"
+              inputMode="numeric"
+              hint="Opcional. Solo números."
+              value={form.cedula}
+              onChange={(e) => setForm({ ...form, cedula: e.target.value.replace(/\D/g, '') })}
+            />
+            <Input
+              label="Teléfono"
+              inputMode="tel"
+              value={form.telefono}
+              onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+            />
+          </div>
           <Select label="Rol" value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}>
             {ROLES.map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
           </Select>
@@ -237,6 +281,21 @@ export default function Usuarios() {
                 <Input label="Nombre" value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} required />
                 <Input label="Apellido" value={editForm.apellido} onChange={(e) => setEditForm({ ...editForm, apellido: e.target.value })} required />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Cédula"
+                  inputMode="numeric"
+                  hint="Solo números."
+                  value={editForm.cedula}
+                  onChange={(e) => setEditForm({ ...editForm, cedula: e.target.value.replace(/\D/g, '') })}
+                />
+                <Input
+                  label="Teléfono"
+                  inputMode="tel"
+                  value={editForm.telefono}
+                  onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+                />
+              </div>
               <Select label="Rol" value={editForm.rol} onChange={(e) => setEditForm({ ...editForm, rol: e.target.value })}>
                 {ROLES.map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
               </Select>
@@ -259,9 +318,25 @@ export default function Usuarios() {
         title="Eliminar usuario"
         message={confirmarEliminar ? `¿Eliminar al usuario ${confirmarEliminar.nombre} ${confirmarEliminar.apellido}? Esta acción no se puede deshacer.` : ''}
         confirmLabel="Eliminar"
+        tone="danger"
+        icon={Trash2}
         loading={eliminando === confirmarEliminar?.id}
         onConfirm={confirmarEliminarUsuario}
         onCancel={() => setConfirmarEliminar(null)}
+      />
+
+      {/* Confirmar desactivar */}
+      <ConfirmModal
+        open={!!confirmarDesactivar}
+        title="Desactivar usuario"
+        message={confirmarDesactivar ? `¿Desactivar a ${confirmarDesactivar.nombre} ${confirmarDesactivar.apellido}? No podrá iniciar sesión hasta que lo actives de nuevo.` : ''}
+        confirmLabel="Desactivar"
+        cancelLabel="Cancelar"
+        tone="warning"
+        icon={Power}
+        loading={desactivando === confirmarDesactivar?.id}
+        onConfirm={() => aplicarToggleActivo(confirmarDesactivar)}
+        onCancel={() => setConfirmarDesactivar(null)}
       />
     </div>
   );

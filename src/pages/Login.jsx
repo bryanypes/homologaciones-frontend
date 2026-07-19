@@ -7,6 +7,7 @@ import client from '../api/client';
 import AuthShell from '../components/ui/AuthShell';
 import Button from '../components/ui/Button';
 import { Input } from '../components/ui/Field';
+import { sanitizeEmail } from '../lib/email';
 
 export default function Login() {
   const { login } = useAuth();
@@ -15,7 +16,10 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [cargando, setCargando] = useState(false);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: name === 'email' ? sanitizeEmail(value) : value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
