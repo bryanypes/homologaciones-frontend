@@ -50,16 +50,13 @@ const TITULOS = [
 
 function RouteAnnouncer() {
   const location = useLocation();
-  // Capturado una sola vez (el inicializador de useState no se re-ejecuta,
-  // a diferencia de un efecto, así que es inmune al doble-invoke de StrictMode).
+  // guardamos la key inicial para no mover el foco en el primer render
   const [claveInicial] = useState(() => location.key);
 
   useEffect(() => {
     const encontrado = TITULOS.find(({ match }) => match.test(location.pathname));
     document.title = encontrado ? `${encontrado.title} · HomologaIA` : 'HomologaIA — Homologaciones Académicas';
 
-    // No robar el foco en la carga inicial: así el enlace "saltar al contenido"
-    // sigue siendo la primera parada de tabulación para quien navega con teclado.
     if (location.key === claveInicial) return;
 
     const objetivo = document.getElementById('main-content') ?? document.getElementById('inicio');
