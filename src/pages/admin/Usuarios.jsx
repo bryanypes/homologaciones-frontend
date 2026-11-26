@@ -4,7 +4,6 @@ import client from '../../api/client';
 import Navbar from '../../components/Navbar';
 import { useFeedback } from '../../context/FeedbackContext';
 import PageHeader from '../../components/ui/PageHeader';
-import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';

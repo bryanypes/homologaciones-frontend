@@ -25,7 +25,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await client.post('/auth/logout');
-    } catch (_) {
+    } catch {
       // Si falla el logout en el servidor, igual limpiamos local
     } finally {
       localStorage.removeItem('token');
