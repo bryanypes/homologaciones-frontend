@@ -9,7 +9,7 @@ Este repositorio es solo el frontend (React). La API está en el repositorio `ho
 | Versión | 1.0.0 (`package.json`) |
 | Fecha | noviembre de 2026 |
 | Commit registrado | el que figura en `ENTREGA.md` de la carpeta de entrega |
-| Autores | Bryan Yepes, Karen Mancilla, Zulema León Valencia y Jefferson Muñoz Luligo |
+| Autores | Bryan Yepes, Karen Mancilla Solarte, Zulema León Escobar y Jefferson Muñoz Luligo |
 | Institución | Corporación Universitaria Autónoma del Cauca |
 
 ## Qué hace
