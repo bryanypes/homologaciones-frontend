@@ -94,7 +94,7 @@ export default function Home() {
         Saltar al contenido principal
       </a>
 
-      {/* Header */}
+      {/* encabezado */}
       <header
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
           scrolled ? 'bg-background/90 backdrop-blur-md border-b border-ink-100 shadow-soft' : 'bg-transparent border-b border-transparent'
@@ -141,7 +141,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero — layered waves */}
+      {/* portada con ondas */}
       <section id="inicio" tabIndex={-1} className="relative isolate overflow-hidden bg-primary-600 text-white scroll-mt-16">
         <div className="max-w-5xl mx-auto px-6 pt-28 sm:pt-32 pb-32 sm:pb-40 grid lg:grid-cols-[1fr_auto] items-center gap-12 relative z-10">
           <div className="text-center lg:text-left">
@@ -185,15 +185,15 @@ export default function Home() {
           </div>
 
           <div className="relative mx-auto shrink-0 w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80">
-            {/* dotted grid texture */}
+            {/* textura de puntos */}
             <div
               className="absolute -inset-10 text-accent-400/25"
               style={{ backgroundImage: 'radial-gradient(currentColor 1.5px, transparent 1.5px)', backgroundSize: '18px 18px' }}
               aria-hidden="true"
             />
-            {/* glow */}
+            {/* halo */}
             <div className="absolute inset-0 rounded-full bg-accent-500/40 blur-2xl scale-90" aria-hidden="true" />
-            {/* floating decorative shapes */}
+            {/* formas decorativas */}
             <div className="absolute -top-3 -left-5 w-9 h-9 rounded-full border-2 border-accent-400/60 animate-float" aria-hidden="true" />
             <div className="absolute -bottom-2 -right-3 w-6 h-6 rounded-full bg-accent-400/70 animate-float" style={{ animationDelay: '1.1s' }} aria-hidden="true" />
             <Sparkles className="absolute top-1 right-2 w-6 h-6 text-accent-300 animate-twinkle" aria-hidden="true" />
@@ -207,7 +207,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Wave layers — accent peeks above white, which peeks above the cream base */}
+        {/* tres capas de onda: acento, blanco y crema */}
         <svg
           className="absolute inset-x-0 bottom-0 w-full h-28 sm:h-44 text-accent-600"
           viewBox="0 0 1440 320"

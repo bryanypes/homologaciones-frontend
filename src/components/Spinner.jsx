@@ -7,12 +7,12 @@ export default function Spinner({ texto = 'Cargando...', fullScreen = false }) {
       fullScreen ? 'flex-1 py-16' : 'py-16 sm:py-20',
     )}>
       <div className="relative w-40 h-40 sm:w-52 sm:h-52 shrink-0">
-        {/* soft radar pings */}
+        {/* ondas */}
         <span className="absolute inset-0 rounded-full bg-primary-400/20 animate-ping" style={{ animationDuration: '2.4s' }} aria-hidden="true" />
         <span className="absolute inset-8 rounded-full bg-accent-400/20 animate-ping" style={{ animationDuration: '2.4s', animationDelay: '0.6s' }} aria-hidden="true" />
         <div className="absolute inset-6 rounded-full bg-primary-500/10 blur-2xl" aria-hidden="true" />
 
-        {/* orbiting decorations */}
+        {/* adornos en órbita */}
         <div className="absolute -top-1 left-8 w-3.5 h-3.5 rounded-full bg-accent-400/80 animate-float" aria-hidden="true" />
         <div className="absolute bottom-3 -left-2 w-5 h-5 rounded-full border-2 border-primary-300/60 animate-float" style={{ animationDelay: '1s' }} aria-hidden="true" />
         <div className="absolute top-8 -right-1 w-4 h-4 rounded-full bg-primary-300/60 animate-float" style={{ animationDelay: '1.6s' }} aria-hidden="true" />
