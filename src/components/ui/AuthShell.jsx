@@ -4,7 +4,7 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 export default function AuthShell({ title, subtitle, icon: Icon, children }) {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center px-4 py-10 sm:py-14">
-      {/* Decorative background — solid, non-overlapping shapes so colors never blend/mix */}
+      {/* fondo: formas sólidas que no se superponen, para que los colores no se mezclen */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
         <svg className="absolute -top-20 -right-28 w-[380px] sm:w-[480px] text-primary-100" viewBox="0 0 400 400" fill="none">
           <path fill="currentColor" d="M400,0 L400,240 C350,280 320,200 250,210 C180,220 190,130 130,100 C85,78 55,35 30,0 Z" />
@@ -13,7 +13,7 @@ export default function AuthShell({ title, subtitle, icon: Icon, children }) {
           <path fill="currentColor" d="M0,400 L0,160 C50,120 80,200 150,190 C220,180 210,270 270,300 C315,322 345,365 370,400 Z" />
         </svg>
 
-        {/* dotted patches */}
+        {/* puntos */}
         <div
           className="hidden sm:block absolute top-[20%] left-[8%] w-28 h-28 text-accent-500/40"
           style={{ backgroundImage: 'radial-gradient(currentColor 1.5px, transparent 1.5px)', backgroundSize: '16px 16px' }}
@@ -23,7 +23,7 @@ export default function AuthShell({ title, subtitle, icon: Icon, children }) {
           style={{ backgroundImage: 'radial-gradient(currentColor 1.5px, transparent 1.5px)', backgroundSize: '16px 16px' }}
         />
 
-        {/* floating circles + sparkles */}
+        {/* círculos y destellos */}
         <div className="hidden sm:block absolute top-[14%] left-[24%] w-9 h-9 rounded-full border-2 border-accent-400/70 animate-float" />
         <div className="hidden sm:block absolute bottom-[22%] right-[24%] w-6 h-6 rounded-full bg-primary-300/50 animate-float" style={{ animationDelay: '1s' }} />
         <Sparkles className="hidden sm:block absolute top-[32%] right-[14%] w-5 h-5 text-accent-500/80 animate-twinkle" />
@@ -41,9 +41,9 @@ export default function AuthShell({ title, subtitle, icon: Icon, children }) {
       <div className="w-full max-w-4xl relative z-10 animate-fade-in-up">
         <div className="rounded-[20px] bg-white shadow-float-lg overflow-hidden grid lg:grid-cols-2">
 
-          {/* Brand / mascot panel */}
+          {/* panel de marca y mascota */}
           <div className="order-1 lg:order-2 relative bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 flex flex-col items-center justify-center text-center px-8 py-12 lg:py-14 overflow-hidden min-h-[360px] lg:min-h-[520px]">
-            {/* generous gold accents, solid so nothing blends into green */}
+            {/* acentos dorados sólidos, sin transparencia sobre el verde */}
             <svg className="absolute -top-10 -right-16 w-56 h-56 text-accent-500" viewBox="0 0 200 200" fill="none" aria-hidden="true">
               <path fill="currentColor" d="M200,0 L200,120 C170,140 150,100 110,105 C70,110 80,50 40,30 C20,20 10,8 0,0 Z" />
             </svg>
@@ -51,7 +51,7 @@ export default function AuthShell({ title, subtitle, icon: Icon, children }) {
               <path fill="currentColor" d="M0,200 L0,90 C30,70 45,110 85,105 C125,100 120,155 155,175 C175,187 190,195 200,200 Z" />
             </svg>
 
-            {/* scattered circles + stars for a livelier, more dynamic panel */}
+            {/* círculos y estrellas */}
             <div className="absolute top-8 left-10 w-3 h-3 rounded-full bg-accent-400 animate-twinkle" aria-hidden="true" />
             <div className="absolute top-[22%] right-[12%] w-5 h-5 rounded-full border-2 border-accent-300/70 animate-float" aria-hidden="true" />
             <div className="absolute top-[38%] left-[8%] w-4 h-4 rounded-full bg-white/20 animate-float" style={{ animationDelay: '1.2s' }} aria-hidden="true" />
@@ -63,7 +63,7 @@ export default function AuthShell({ title, subtitle, icon: Icon, children }) {
             <Sparkles className="absolute bottom-[36%] right-[8%] w-4 h-4 text-white/70 animate-twinkle" aria-hidden="true" style={{ animationDelay: '1s' }} />
             <Sparkles className="absolute top-[46%] right-[6%] w-3.5 h-3.5 text-accent-200 animate-twinkle" aria-hidden="true" style={{ animationDelay: '1.4s' }} />
 
-            {/* light spotlight so the navy mascot never blends into the navy panel */}
+            {/* luz detrás de la mascota: es azul como el panel y sin esto se pierde */}
             <div className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 mb-6 shrink-0">
               <div className="absolute inset-0 rounded-full bg-accent-400/25 blur-3xl" aria-hidden="true" />
               <div className="absolute inset-3 rounded-full bg-gradient-to-br from-white to-accent-50 shadow-float-lg" aria-hidden="true" />
@@ -84,7 +84,7 @@ export default function AuthShell({ title, subtitle, icon: Icon, children }) {
             </p>
           </div>
 
-          {/* Form panel */}
+          {/* formulario */}
           <div className="order-2 lg:order-1 px-8 py-10 sm:px-10 lg:py-14 flex flex-col justify-center">
             {Icon && (
               <div className="w-12 h-12 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center mb-4">

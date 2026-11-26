@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 export default function Stepper({ steps, current }) {
   return (
     <div className="mb-8">
-      {/* Desktop / tablet */}
+      {/* escritorio y tablet */}
       <ol className="hidden sm:flex items-start">
         {steps.map((label, i) => {
           const isDone = i < current;
@@ -33,7 +33,7 @@ export default function Stepper({ steps, current }) {
         })}
       </ol>
 
-      {/* Mobile */}
+      {/* móvil */}
       <div className="sm:hidden">
         <p className="text-sm font-medium text-ink-700 mb-2">
           Paso {current + 1} de {steps.length} — <span className="text-primary-700">{steps[current]}</span>
