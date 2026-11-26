@@ -395,7 +395,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         </div>
 
-        {/* ─── ENVIADA: tomar en revisión ─── */}
+        {/* ENVIADA: tomar en revisión */}
         {solicitud.estado === 'enviada' && (
           <Card className="mb-5">
             <CardHeader title="Tomar en revisión" subtitle="Al tomar en revisión podrás subir el pensum del programa destino y activar el análisis con IA." />
@@ -411,7 +411,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── EN_REVISION: subir pensum + procesar ─── */}
+        {/* EN_REVISION: subir pensum + procesar */}
         {solicitud.estado === 'en_revision' && (
           <Card className="mb-5">
             <CardHeader title="Preparar análisis IA" />
@@ -464,7 +464,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── PROCESANDO_IA ─── */}
+        {/* PROCESANDO_IA */}
         {solicitud.estado === 'procesando_ia' && (
           <Card className="mb-5">
             <AIProcessingScreen
@@ -475,7 +475,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── REVISION_COORDINADOR: revisar y editar ─── */}
+        {/* REVISION_COORDINADOR: revisar y editar */}
         {solicitud.estado === 'revision_coordinador' && (
           <Card className="mb-5">
             <CardHeader
@@ -583,7 +583,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── APROBADA ─── */}
+        {/* APROBADA */}
         {solicitud.estado === 'aprobada' && (
           <Card className="mb-5 border-success-200 flex items-center gap-3">
             <img src="/img/Iaaprobada.svg" alt="" className="w-11 h-11 shrink-0" />
@@ -594,7 +594,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── Solo lectura (pendiente_rector / aprobada / rechazada) ─── */}
+        {/* Solo lectura (pendiente_rector / aprobada / rechazada) */}
         {ESTADOS_CON_HOMOLOGACION.filter((e) => e !== 'revision_coordinador').includes(solicitud.estado) && homologacion && (
           <Card className="mb-5">
             <CardHeader title="Resultado del análisis" />
@@ -627,7 +627,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── Resolución ─── */}
+        {/* Resolución */}
         {mostrarResolucion && (
           <Card className="mb-5">
             <CardHeader title="Resolución oficial" subtitle="Genera la resolución automática, descárgala, edítala en Word si es necesario, y sube la versión final." />
@@ -666,7 +666,7 @@ export default function DetalleSolicitudCoordinador() {
           </Card>
         )}
 
-        {/* ─── HISTORIAL ─── */}
+        {/* HISTORIAL */}
         {historial.length > 0 && (
           <Card>
             <CardHeader title="Historial de estados" />
